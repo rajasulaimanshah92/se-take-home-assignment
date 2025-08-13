@@ -136,7 +136,6 @@
 
             function takeNext() {
                 const job = pending.value.shift() || null
-                // console.log('[Queue] takeNext ->', job ? job.id : null, '| remaining:', pending.value.map(o => o.id))
                 return job
             }
 
@@ -173,7 +172,6 @@
                     currentOrder:null
                 }
                 bots.value.push(bot)
-                // console.log('[Bot] + Bot#'+bot.id)
                 tryWork( bot )
             }
 
@@ -181,7 +179,6 @@
                 if (bots.value.length === 0) { console.log('[Bot] none to remove'); return }
 
                 const bot = bots.value[bots.value.length - 1]
-                // console.log('[Bot] - Removing Bot ID:'+bot.id, 'busy?', bot.status === 'BUSY')
 
                 if (bot.status === 'BUSY' && bot.timer) {
                     clearTimeout(bot.timer)
