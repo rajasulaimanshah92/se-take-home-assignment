@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Order Controller</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <script defer src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" ></script>
+</head>
+<body>
+    <div id="app" class="container py-3">
+
+        <h1 class="h3 mb-4 text-center">Automated Cooking Bots</h1>
+
+        <div class="d-flex flex-wrap gap-2 mb-4">
+            <button @click="newNormalOrder" class="btn btn-secondary btn-sm bold">New Normal Order</b></button>
+            <button @click="newVipOrder" class="btn btn-warning btn-sm bold">New VIP Order</button>
+            <button @click="addBot" class="btn btn-success btn-sm"> + Bot</button>
+            <button @click="removeBot" :disabled="bots.length===0" class="btn btn-danger btn-sm"> - Bot</button>
+        </div>
+
+        <div class="d-flex flex-wrap align-items-center gap-3 mb-4">
+            <div class="badge text-bg-primary">Pending: {{ pending.length }}</div>
+            <div class="badge text-bg-success">Complete: {{ complete.length }}</div>
+            <div class="badge text-bg-dark">Bots: {{ bots.length }}</div>
+        </div>
+
+        <div class="card mb-4 shadow-sm">
+            <div class="card-header">Bots</div>
+            <div class="card-body">
+                <div class="d-flex flex-wrap gap-2">
+                    <div v-for="b in bots" :key="b.id" class="card p-2">
+                        <div class="fw-semibold">Bot ID: {{ b.id }}</div>
+                        <div>Status: 
+                            <span :class="b.status==='IDLE' ? 'status-idle' : 'status-busy'">{{ b.status }}</span>
+                        </div>
+                        <div v-if="b.currentOrder" class="small mt-1">
+                            Cooking Order ID: {{ b.currentOrder.id }}
+                            <span class="badge ms-1" :class="b.currentOrder.type==='VIP' ? 'text-bg-warning text-dark' : 'text-bg-secondary'"> {{ b.currentOrder.type }} </span>
+                        </div>
+                        <div v-if="bots.length===0" class="text-muted">No bots yet. Click “+ Bot”.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-12 col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header">PENDING</div>
+                    <div class="card-body">
+                        <div v-if="pending.length === 0" class="text-muted">No pending orders</div>
+                        <div v-for="o in pending" :key="o.id" class="card mb-2" >
+
+                        <div class="card-body py-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="fw-semibold">Order ID: {{ o.id }}</div>
+                                    <span class="badge" :class="o.type==='VIP' ? 'text-bg-warning text-dark' : 'text-bg-secondary'"> {{ o.type }} </span>
+                            </div>
+                            <div class="small text-muted">Status: {{ o.status }}</div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-lg-6">
+            <div class="card h-100">
+                <div class="card-header">COMPLETE</div>
+                    <div class="card-body">
+                        <div v-if="complete.length===0" class="text-muted">No completed orders yet.</div>
+                        <div v-for="o in complete" :key="o.id" class="card mb-2" >
+
+                            <div class="card-body py-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="fw-semibold">Order ID: {{ o.id }}</div>
+                                    <span class="badge" :class="o.type==='VIP' ? 'text-bg-warning text-dark' : 'text-bg-secondary'" > {{ o.type }} </span>
+                                </div>
+                                <div class="small text-muted">Status: {{ o.status }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+        
+
+<script>
+    const App = {
+        setup() {
+            const { ref } = Vue
+            const pending = ref([])
+            const complete = ref([])
+            const bots = ref([])
+            const nextOrderId = ref(1)
+            const nextBotId = ref(1)
+            const processTime = 10000
+
+            function addToQueue( order ) {
+                console.log( '[Queue] Enqueue:', order );
+                if ( order.type === 'VIP' ) {
+                    let lastVip = -1
+                    pending.value.forEach(( o, i ) => {
+                        if ( o.type === 'VIP' ) lastVip = i;
+                    });
+                    pending.value.splice( lastVip + 1, 0, order );
+                } else {
+                    pending.value.push( order );
+                }
+            }
+
+            function newNormalOrder() {
+                const order = {
+                    id: nextOrderId.value++, 
+                    type: 'NORMAL', 
+                    status: 'PENDING'
+                }
+                console.log('[Order] New NORMAL', order)
+                addToQueue( order )
+                workAll()
+            }
+
+            function newVipOrder() {
+                const order = {
+                    id: nextOrderId.value++, 
+                    type: 'VIP', 
+                    status: 'PENDING' 
+                }
+                addToQueue( order )
+                workAll()
+            }
+
+            function takeNext() {
+                const job = pending.value.shift() || null
+                // console.log('[Queue] takeNext ->', job ? job.id : null, '| remaining:', pending.value.map(o => o.id))
+                return job
+            }
+
+            function tryWork( bot ) {
+                if ( bot.status !== 'IDLE' ) return
+
+                const job = takeNext()
+                if ( !job ) { return }
+
+                job.status = 'PROCESSING'
+                bot.status = 'BUSY'
+                bot.currentOrder = job
+                bot.timer = setTimeout(() => {
+                    job.status = 'COMPLETE'
+                    complete.value.push( job )
+                    bot.currentOrder = null
+                    bot.status = 'IDLE'
+                    bot.timer = null
+                    tryWork( bot )
+                }, processTime)
+            }
+
+            function workAll() {
+                for ( const bot of bots.value ) {
+                    tryWork( bot )
+                }
+            }
+
+            function addBot() {
+                const bot = {
+                    id: nextBotId.value++,
+                    status:'IDLE',
+                    timer:null,
+                    currentOrder:null
+                }
+                bots.value.push(bot)
+                // console.log('[Bot] + Bot#'+bot.id)
+                tryWork( bot )
+            }
+
+            function removeBot() {
+                if (bots.value.length === 0) { console.log('[Bot] none to remove'); return }
+
+                const bot = bots.value[bots.value.length - 1]
+                // console.log('[Bot] - Removing Bot ID:'+bot.id, 'busy?', bot.status === 'BUSY')
+
+                if (bot.status === 'BUSY' && bot.timer) {
+                    clearTimeout(bot.timer)
+                    bot.timer = null
+                    if (bot.currentOrder) {
+                        console.log('[Bot ID: '+bot.id+'] CANCEL job', bot.currentOrder.id, '-> back to pending')
+                        bot.currentOrder.status = 'PENDING'
+                        addToQueue(bot.currentOrder)
+                        bot.currentOrder = null
+                    }
+                }
+
+                bots.value.pop()
+                console.log('[Bot] count now', bots.value.length)
+                workAll()
+            }
+
+            return { pending, complete, bots, addToQueue, newNormalOrder, newVipOrder, addBot, removeBot }
+        }
+    }
+    Vue.createApp(App).mount('#app')
+</script>
+
+<style>
+    .status-idle { color: #198754; }
+    .status-busy { color: #dc3545; }  
+</style>
+</body>
+
+</html>
+
